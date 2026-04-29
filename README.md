@@ -32,3 +32,4 @@ Nykaa clone made using Java and SpringBoot
     - Checkout
   - Order
     - Order tracking
+  - Dockerize application
