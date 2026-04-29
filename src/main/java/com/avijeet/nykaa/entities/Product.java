@@ -10,14 +10,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-import org.hibernate.validator.constraints.URL;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Entity
 @Table(name = "products")
@@ -39,27 +33,30 @@ public class Product {
     @Positive(message = "Price must be greater than zero")
     private Double price;
 
-    @Column(name = "imageUrl", nullable = true)
-    @URL(message = "Please provide a valid url")
-    private String imageUrl;
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "metadata", nullable = true, columnDefinition = "jsonb")
-    private Map<String, Object> metadata;
-
     @Column(name = "category", nullable = false)
-    @NotBlank(message = "Category is required")
+    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Category is required")
     private Category category;
 
     @Column(name = "brand", nullable = false)
-    @NotBlank(message = "Brand is required")
+    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Brand is required")
     private Brand brand;
 
-    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }
