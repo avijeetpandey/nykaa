@@ -12,8 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -22,43 +20,58 @@ public class UserService {
 
     @Transactional
     public UserResponseDto addUser(UserRequestDto userRequestDto) {
-        User user = toEntity(userRequestDto);
-        userRepository.save(user);
-        log.info("User added successfully: name={}, email={}", userRequestDto.name(), userRequestDto.email());
-        return toResponseDto(user);
+        log.info("Attempting to add user with email: {}", userRequestDto.email());
+        try {
+            User user = toEntity(userRequestDto);
+            User savedUser = userRepository.save(user);
+            log.info("User added successfully: id={}, name={}, email={}", savedUser.getId(), userRequestDto.name(), userRequestDto.email());
+            return toResponseDto(savedUser);
+        } catch (Exception e) {
+            log.error("Error occurred while adding user: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to add user", e);
+        }
     }
 
     @Transactional
     public void deleteUser(Long id) {
-        Optional<User> user = userRepository.findById(id);
-        if(user.isEmpty()) {
-            log.error("User not found unable to delete");
-            throw new UserNotFoundException("User not found unable to delete");
+        log.info("Attempting to delete user with id: {}", id);
+        User user = userRepository.findById(id).orElseThrow(() -> {
+            log.error("User not found unable to delete. Id: {}", id);
+            return new UserNotFoundException("User not found unable to delete");
+        });
+
+        try {
+            userRepository.delete(user);
+            log.info("User deleted successfully: id={}", id);
+        } catch (Exception e) {
+            log.error("Error occurred while deleting user id {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Failed to delete user", e);
         }
-        userRepository.delete(user.get());
-        log.info("User deleted successfully");
     }
 
     @Transactional
     public UserResponseDto updateUser(UserUpdateRequestDto userUpdateRequestDto) {
-        Optional<User> optionalUser = userRepository.findById(userUpdateRequestDto.id());
+        log.info("Attempting to update user with id: {}", userUpdateRequestDto.id());
+        User updatedUser = userRepository.findById(userUpdateRequestDto.id())
+                .orElseThrow(() -> {
+                    log.error("User not found unable to update. Id: {}", userUpdateRequestDto.id());
+                    return new UserNotFoundException("User not found unable to update");
+                });
 
-        if(optionalUser.isEmpty()) {
-            log.error("User not found unable to update");
-            throw new UserNotFoundException("User not found unable to update");
+        try {
+            updatedUser.setName(userUpdateRequestDto.name());
+            updatedUser.setEmail(userUpdateRequestDto.email());
+            updatedUser.setAddress(userUpdateRequestDto.address());
+
+            User savedUser = userRepository.save(updatedUser);
+
+            log.info("User updated successfully: id={}, name={}, email={}", savedUser.getId(), userUpdateRequestDto.name(), userUpdateRequestDto.email());
+            return toResponseDto(savedUser);
+        } catch (Exception e) {
+            log.error("Error occurred while updating user id {}: {}", userUpdateRequestDto.id(), e.getMessage(), e);
+            throw new RuntimeException("Failed to update user", e);
         }
-
-        User updatedUser = optionalUser.get();
-        updatedUser.setName(userUpdateRequestDto.name());
-        updatedUser.setEmail(userUpdateRequestDto.email());
-        updatedUser.setAddress(userUpdateRequestDto.address());
-
-        userRepository.save(updatedUser);
-
-        log.info("User updated successfully: name={}, email={}", userUpdateRequestDto.name(), userUpdateRequestDto.email());
-        return toResponseDto(updatedUser);
     }
-
 
     private UserResponseDto toResponseDto(User user) {
         return UserResponseDto.builder()
