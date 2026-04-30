@@ -2,6 +2,7 @@ package com.avijeet.nykaa.service.user;
 
 import com.avijeet.nykaa.dto.user.UserRequestDto;
 import com.avijeet.nykaa.dto.user.UserResponseDto;
+import com.avijeet.nykaa.dto.user.UserUpdateRequestDto;
 import com.avijeet.nykaa.entities.user.User;
 import com.avijeet.nykaa.enums.Role;
 import com.avijeet.nykaa.exception.user.UserNotFoundException;
@@ -27,6 +28,7 @@ public class UserService {
         return toResponseDto(user);
     }
 
+    @Transactional
     public void deleteUser(Long id) {
         Optional<User> user = userRepository.findById(id);
         if(user.isEmpty()) {
@@ -36,6 +38,27 @@ public class UserService {
         userRepository.delete(user.get());
         log.info("User deleted successfully");
     }
+
+    @Transactional
+    public UserResponseDto updateUser(UserUpdateRequestDto userUpdateRequestDto) {
+        Optional<User> optionalUser = userRepository.findById(userUpdateRequestDto.id());
+
+        if(optionalUser.isEmpty()) {
+            log.error("User not found unable to update");
+            throw new UserNotFoundException("User not found unable to update");
+        }
+
+        User updatedUser = optionalUser.get();
+        updatedUser.setName(userUpdateRequestDto.name());
+        updatedUser.setEmail(userUpdateRequestDto.email());
+        updatedUser.setAddress(userUpdateRequestDto.address());
+
+        userRepository.save(updatedUser);
+
+        log.info("User updated successfully: name={}, email={}", userUpdateRequestDto.name(), userUpdateRequestDto.email());
+        return toResponseDto(updatedUser);
+    }
+
 
     private UserResponseDto toResponseDto(User user) {
         return UserResponseDto.builder()

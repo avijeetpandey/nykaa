@@ -3,6 +3,7 @@ package com.avijeet.nykaa.controller.user;
 import com.avijeet.nykaa.constants.ApiConstants;
 import com.avijeet.nykaa.dto.user.UserRequestDto;
 import com.avijeet.nykaa.dto.user.UserResponseDto;
+import com.avijeet.nykaa.dto.user.UserUpdateRequestDto;
 import com.avijeet.nykaa.service.user.UserService;
 import com.avijeet.nykaa.utils.api.ApiResponse;
 import jakarta.validation.Valid;
@@ -27,5 +28,10 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok(ApiResponse.success(ApiConstants.DONE_MESSAGE, null));
+    }
+
+    @PostMapping("/update")
+    public ResponseEntity<ApiResponse<UserResponseDto>> updateUser(@Valid @RequestBody UserUpdateRequestDto userUpdateRequestDto) {
+        return  ResponseEntity.ok(ApiResponse.success(ApiConstants.DONE_MESSAGE, userService.updateUser(userUpdateRequestDto)));
     }
 }
