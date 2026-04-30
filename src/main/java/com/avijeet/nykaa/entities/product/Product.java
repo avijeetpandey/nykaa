@@ -1,4 +1,4 @@
-package com.avijeet.nykaa.entities;
+package com.avijeet.nykaa.entities.product;
 
 import com.avijeet.nykaa.enums.Brand;
 import com.avijeet.nykaa.enums.Category;
