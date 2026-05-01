@@ -10,6 +10,7 @@ import com.avijeet.nykaa.utils.api.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,25 +26,40 @@ public class ProductController {
     @PostMapping("/add")
     public ResponseEntity<ApiResponse<ProductResponseDto>> addProduct(@Valid @RequestBody ProductRequestDto productRequestDto) {
         log.info("POST /api/v1/products/add - name={}", productRequestDto.name());
-        ProductResponseDto savedProduct = productService.addProduct(productRequestDto);
-        ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE,savedProduct);
-        return ResponseEntity.ok(response);
+        try {
+            ProductResponseDto savedProduct = productService.addProduct(productRequestDto);
+            ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE,savedProduct);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error in POST /api/v1/products/add: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @PostMapping("/update")
     public ResponseEntity<ApiResponse<ProductResponseDto>> addProduct(@Valid @RequestBody ProductUpdateDto productUpdateDto) {
-        log.info("POST /api/v1/products/update - name={}", productUpdateDto.name());
-        ProductResponseDto savedProduct = productService.updateProduct(productUpdateDto);
-        ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE,savedProduct);
-        return ResponseEntity.ok(response);
+        log.info("POST /api/v1/products/update - id={}", productUpdateDto.id());
+        try {
+            ProductResponseDto savedProduct = productService.updateProduct(productUpdateDto);
+            ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE,savedProduct);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error in POST /api/v1/products/update for id {}: {}", productUpdateDto.id(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<ApiResponse<ProductResponseDto>> deleteProduct(@PathVariable Long id) {
         log.info("DELETE /api/v1/products/delete/{} - Deleting product with id={}", id, id);
-        productService.deleteProduct(id);
-        ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE, null);
-        return ResponseEntity.ok(response);
+        try {
+            productService.deleteProduct(id);
+            ApiResponse<ProductResponseDto> response = ApiResponse.success(ApiConstants.DONE_MESSAGE, null);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error in DELETE /api/v1/products/delete/{}: {}", id, e.getMessage(), e);
+            throw e;
+        }
     }
 
     @GetMapping("/all")
@@ -53,13 +69,25 @@ public class ProductController {
             @RequestParam(value = "sortBy", defaultValue = "id", required = false) String sortBy,
             @RequestParam(value = "sortDir", defaultValue = "asc", required = false) String sortDir
     ) {
-        PageResponse<ProductResponseDto> paginatedProducts = productService.getAllProducts(pageNo, pageSize, sortBy, sortDir);
-        return ResponseEntity.ok(ApiResponse.success("Products fetched successfully", paginatedProducts));
+        log.info("GET /api/v1/products/all called with pageNo={}, pageSize={}, sortBy={}, sortDir={}", pageNo, pageSize, sortBy, sortDir);
+        try {
+            PageResponse<ProductResponseDto> paginatedProducts = productService.getAllProducts(pageNo, pageSize, sortBy, sortDir);
+            return ResponseEntity.ok(ApiResponse.success("Products fetched successfully", paginatedProducts));
+        } catch (Exception e) {
+            log.error("Error in GET /api/v1/products/all: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 
     @PostMapping("/addBulk")
     public ResponseEntity<ApiResponse<List<ProductResponseDto>>> addBulkProducts(@Valid @RequestBody List<ProductRequestDto> requestDtosList) {
-        List<ProductResponseDto> bulkProducts = productService.addBulkProducts(requestDtosList);
-        return ResponseEntity.ok(ApiResponse.success("Products fetched successfully", bulkProducts));
+        log.info("POST /api/v1/products/addBulk called with {} items", requestDtosList.size());
+        try {
+            List<ProductResponseDto> bulkProducts = productService.addBulkProducts(requestDtosList);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Products added successfully", bulkProducts));
+        } catch (Exception e) {
+            log.error("Error in POST /api/v1/products/addBulk: {}", e.getMessage(), e);
+            throw e;
+        }
     }
 }
