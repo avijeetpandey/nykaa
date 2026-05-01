@@ -79,6 +79,26 @@ public class ProductController {
         }
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponseDto>>> searchProducts(
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "brand", required = false) String brand,
+            @RequestParam(value = "pageNo", defaultValue = "0", required = false) int pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10", required = false) int pageSize,
+            @RequestParam(value = "sortBy", defaultValue = "id", required = false) String sortBy,
+            @RequestParam(value = "sortDir", defaultValue = "asc", required = false) String sortDir
+    ) {
+        log.info("GET /api/v1/products/search called with name={}, category={}, brand={}", name, category, brand);
+        try {
+            PageResponse<ProductResponseDto> searchResults = productService.searchProducts(name, category, brand, pageNo, pageSize, sortBy, sortDir);
+            return ResponseEntity.ok(ApiResponse.success("Products searched successfully", searchResults));
+        } catch (Exception e) {
+            log.error("Error in GET /api/v1/products/search: {}", e.getMessage(), e);
+            throw e;
+        }
+    }
+
     @PostMapping("/addBulk")
     public ResponseEntity<ApiResponse<List<ProductResponseDto>>> addBulkProducts(@Valid @RequestBody List<ProductRequestDto> requestDtosList) {
         log.info("POST /api/v1/products/addBulk called with {} items", requestDtosList.size());

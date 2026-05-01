@@ -76,6 +76,18 @@ curl --location --request DELETE 'http://localhost:3000/api/v1/users/delete/1' \
 curl --location 'http://localhost:3000/api/v1/products/all?pageNo=0&pageSize=10&sortBy=id&sortDir=asc'
 ```
 
+### Search Products (Public)
+```bash
+# Search by partial name
+curl --location 'http://localhost:3000/api/v1/products/search?name=Perfume&pageNo=0&pageSize=10'
+
+# Search by exact category
+curl --location 'http://localhost:3000/api/v1/products/search?category=PERFUME&pageNo=0&pageSize=10'
+
+# Search by exact brand
+curl --location 'http://localhost:3000/api/v1/products/search?brand=PRADA&pageNo=0&pageSize=10'
+```
+
 ### Add Product (Admin Only)
 ```bash
 curl --location 'http://localhost:3000/api/v1/products/add' \

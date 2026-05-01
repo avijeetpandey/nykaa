@@ -5,10 +5,12 @@ import com.avijeet.nykaa.dto.product.ProductRequestDto;
 import com.avijeet.nykaa.dto.product.ProductResponseDto;
 import com.avijeet.nykaa.dto.product.ProductUpdateDto;
 import com.avijeet.nykaa.entities.product.Product;
+import com.avijeet.nykaa.entities.product.ProductDocument;
 import com.avijeet.nykaa.enums.Brand;
 import com.avijeet.nykaa.enums.Category;
 import com.avijeet.nykaa.exception.ProductNotFoundException;
 import com.avijeet.nykaa.repository.product.ProductRepository;
+import com.avijeet.nykaa.repository.elasticsearch.ProductSearchRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -26,6 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductService {
     private final ProductRepository productRepository;
+    private final ProductSearchRepository productSearchRepository;
 
     @Transactional
     public ProductResponseDto addProduct(ProductRequestDto productRequestDto) {
@@ -40,6 +43,7 @@ public class ProductService {
                     .build();
 
             Product savedProduct = productRepository.save(product);
+            productSearchRepository.save(mapToDocument(savedProduct));
 
             log.info("Product saved successfully: id={}", savedProduct.getId());
             return mapToResponseDto(savedProduct);
@@ -76,6 +80,8 @@ public class ProductService {
             }
 
             Product savedProduct = productRepository.save(existingProduct);
+            productSearchRepository.save(mapToDocument(savedProduct));
+            
             log.info("Product updated successfully: id={}", savedProduct.getId());
 
             return mapToResponseDto(savedProduct);
@@ -95,6 +101,7 @@ public class ProductService {
         
         try {
             productRepository.deleteById(productId);
+            productSearchRepository.deleteById(String.valueOf(productId));
             log.info("Product deleted successfully: id={}", productId);
         } catch (Exception e) {
             log.error("Error occurred while deleting product id {}: {}", productId, e.getMessage(), e);
@@ -132,6 +139,44 @@ public class ProductService {
         }
     }
 
+    public PageResponse<ProductResponseDto> searchProducts(String name, String category, String brand, int pageNo, int pageSize, String sortBy, String sortDir) {
+        log.info("Searching products: name={}, category={}, brand={}", name, category, brand);
+        try {
+            Sort sort = sortDir.equalsIgnoreCase(Sort.Direction.ASC.name())
+                    ? Sort.by(sortBy).ascending()
+                    : Sort.by(sortBy).descending();
+
+            Pageable pageable = PageRequest.of(pageNo, pageSize, sort);
+            Page<ProductDocument> searchResults;
+
+            if (name != null && !name.trim().isEmpty()) {
+                searchResults = productSearchRepository.findByNameContainingIgnoreCase(name, pageable);
+            } else if (category != null && !category.trim().isEmpty()) {
+                searchResults = productSearchRepository.findByCategory(Category.valueOf(category.toUpperCase()), pageable);
+            } else if (brand != null && !brand.trim().isEmpty()) {
+                searchResults = productSearchRepository.findByBrand(Brand.valueOf(brand.toUpperCase()), pageable);
+            } else {
+                searchResults = productSearchRepository.findAll(pageable);
+            }
+
+            List<ProductResponseDto> content = searchResults.getContent().stream()
+                    .map(this::mapDocumentToResponseDto)
+                    .toList();
+
+            return new PageResponse<>(
+                    content,
+                    searchResults.getNumber(),
+                    searchResults.getSize(),
+                    searchResults.getTotalElements(),
+                    searchResults.getTotalPages(),
+                    searchResults.isLast()
+            );
+        } catch (Exception e) {
+            log.error("Error occurred while searching products: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to search products", e);
+        }
+    }
+
     @Transactional
     public List<ProductResponseDto> addBulkProducts(List<ProductRequestDto> requestDtos) {
         log.info("Attempting to add bulk products, count: {}", requestDtos.size());
@@ -141,6 +186,12 @@ public class ProductService {
                     .toList();
 
             List<Product> savedProducts = productRepository.saveAll(productsToSave);
+            
+            List<ProductDocument> documentsToSave = savedProducts.stream()
+                    .map(this::mapToDocument)
+                    .toList();
+            productSearchRepository.saveAll(documentsToSave);
+            
             log.info("Successfully added {} bulk products", savedProducts.size());
 
             return savedProducts.stream()
@@ -163,6 +214,18 @@ public class ProductService {
                 product.getUpdatedAt()
         );
     }
+    
+    private ProductResponseDto mapDocumentToResponseDto(ProductDocument document) {
+        return new ProductResponseDto(
+                Long.parseLong(document.getId()),
+                document.getName(),
+                document.getCategory().name(),
+                document.getBrand().name(),
+                document.getPrice(),
+                null, 
+                null  
+        );
+    }
 
     private Product mapToEntity(ProductRequestDto productRequestDto) {
         return Product.builder()
@@ -170,6 +233,16 @@ public class ProductService {
                 .category(Category.valueOf(String.valueOf(productRequestDto.category())))
                 .brand(Brand.valueOf(String.valueOf(productRequestDto.brand())))
                 .name(productRequestDto.name())
+                .build();
+    }
+    
+    private ProductDocument mapToDocument(Product product) {
+        return ProductDocument.builder()
+                .id(String.valueOf(product.getId()))
+                .name(product.getName())
+                .category(product.getCategory())
+                .brand(product.getBrand())
+                .price(product.getPrice())
                 .build();
     }
 
