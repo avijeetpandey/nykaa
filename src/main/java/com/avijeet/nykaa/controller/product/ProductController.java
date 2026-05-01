@@ -86,7 +86,7 @@ public class ProductController {
             @RequestParam(value = "brand", required = false) String brand,
             @RequestParam(value = "pageNo", defaultValue = "0", required = false) int pageNo,
             @RequestParam(value = "pageSize", defaultValue = "10", required = false) int pageSize,
-            @RequestParam(value = "sortBy", defaultValue = "id", required = false) String sortBy,
+            @RequestParam(value = "sortBy", defaultValue = "price", required = false) String sortBy,
             @RequestParam(value = "sortDir", defaultValue = "asc", required = false) String sortDir
     ) {
         log.info("GET /api/v1/products/search called with name={}, category={}, brand={}", name, category, brand);
