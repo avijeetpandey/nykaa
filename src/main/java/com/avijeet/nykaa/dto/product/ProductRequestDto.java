@@ -2,6 +2,7 @@ package com.avijeet.nykaa.dto.product;
 
 import com.avijeet.nykaa.enums.Brand;
 import com.avijeet.nykaa.enums.Category;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -18,5 +19,8 @@ public record ProductRequestDto(
 
         @NotNull(message = "Price is required")
         @Positive(message = "Price must be greater than zero")
-        Double price
+        Double price,
+
+        @Min(value = 0, message = "Stock quantity must be non-negative")
+        Integer stockQuantity
 ) {}

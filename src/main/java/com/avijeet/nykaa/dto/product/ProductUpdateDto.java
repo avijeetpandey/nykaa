@@ -5,5 +5,6 @@ public record ProductUpdateDto(
         String name,
         String category,
         String brand,
-        Double price
+        Double price,
+        Integer stockQuantity
 ) {}

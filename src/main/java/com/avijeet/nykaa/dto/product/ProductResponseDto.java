@@ -8,6 +8,7 @@ public record ProductResponseDto(
         String category,
         String brand,
         Double price,
+        Integer stockQuantity,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}
