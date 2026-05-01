@@ -39,6 +39,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/products/add", "/api/v1/products/update", "/api/v1/products/addBulk", "/api/v1/products/delete/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/users/add", "/api/v1/users/delete/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/users/update").authenticated()
+                        .requestMatchers("/api/v1/orders/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
@@ -51,4 +52,3 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 }
-

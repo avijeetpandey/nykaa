@@ -113,6 +113,7 @@ public class OrderService {
         }
     }
 
+    @Transactional(readOnly = true)
     public OrderResponseDto getCart(Long userId) {
         log.info("Fetching cart for user {}", userId);
         Order order = orderRepository.findByUserIdAndStatus(userId, OrderState.PENDING)
