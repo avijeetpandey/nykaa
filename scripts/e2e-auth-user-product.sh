@@ -5,7 +5,7 @@ BASE_URL="${BASE_URL:-http://localhost:3000}"
 CURL_BIN="${CURL_BIN:-curl}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-adminPassword123}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin}"
 CUSTOMER_PASSWORD="${CUSTOMER_PASSWORD:-Password123!}"
 TIMESTAMP="$(date +%s)"
 CUSTOMER_EMAIL="${CUSTOMER_EMAIL:-e2e.customer.${TIMESTAMP}@example.com}"
@@ -417,12 +417,56 @@ JSON
   request POST "/api/v1/products/addBulk" "$bulk_body" "$ADMIN_TOKEN"
   assert_status 201 "POST /api/v1/products/addBulk as admin"
   assert_json_not_empty "data[0].id" "Bulk product response should include created ids"
+}
 
-  request DELETE "/api/v1/products/delete/$ADMIN_PRODUCT_ID" "" "$ADMIN_TOKEN"
-  assert_status 200 "DELETE /api/v1/products/delete/{id} as admin"
+run_order_flow() {
+  log_step "Testing Order and Cart flow"
 
-  request DELETE "/api/v1/users/delete/$ADMIN_USER_ID" "" "$ADMIN_TOKEN"
-  assert_status 200 "DELETE /api/v1/users/delete/{id} as admin"
+  if [[ -z "$ADMIN_PRODUCT_ID" || "$ADMIN_PRODUCT_ID" == "null" ]]; then
+    skip "Admin product was not created; skipping order tests"
+    return
+  fi
+
+  local cart_add_body
+  cart_add_body=$(cat <<JSON
+{
+  "productId": $ADMIN_PRODUCT_ID,
+  "quantity": 2
+}
+JSON
+)
+
+  request POST "/api/v1/orders/cart/add" "$cart_add_body" "$CUSTOMER_TOKEN"
+  assert_status 200 "POST /api/v1/orders/cart/add"
+  assert_json_equals "data.status" "PENDING" "Cart status should be PENDING"
+  assert_json_equals "data.items[0].productId" "$ADMIN_PRODUCT_ID" "Cart item should match added product"
+  assert_json_equals "data.items[0].quantity" "2" "Cart item quantity should be 2"
+
+  request GET "/api/v1/orders/cart" "" "$CUSTOMER_TOKEN"
+  assert_status 200 "GET /api/v1/orders/cart"
+  assert_json_equals "data.status" "PENDING" "Fetched cart status should be PENDING"
+  assert_json_not_empty "data.items" "Fetched cart should have items"
+
+  request POST "/api/v1/orders/place" "" "$CUSTOMER_TOKEN"
+  assert_status 200 "POST /api/v1/orders/place"
+  assert_json_equals "data.status" "SUCCESS" "Order status should transition to SUCCESS"
+
+  # Now the cart should be empty (or not found) since the order was placed
+  request GET "/api/v1/orders/cart" "" "$CUSTOMER_TOKEN"
+  assert_status 400 "GET /api/v1/orders/cart after place (expect empty cart exception)"
+}
+
+cleanup_admin_resources() {
+  log_step "Cleaning up admin resources"
+  if [[ -n "$ADMIN_PRODUCT_ID" && "$ADMIN_PRODUCT_ID" != "null" ]]; then
+    request DELETE "/api/v1/products/delete/$ADMIN_PRODUCT_ID" "" "$ADMIN_TOKEN"
+    assert_status 200 "DELETE /api/v1/products/delete/{id} as admin"
+  fi
+
+  if [[ -n "$ADMIN_USER_ID" && "$ADMIN_USER_ID" != "null" ]]; then
+    request DELETE "/api/v1/users/delete/$ADMIN_USER_ID" "" "$ADMIN_TOKEN"
+    assert_status 200 "DELETE /api/v1/users/delete/{id} as admin"
+  fi
 }
 
 print_summary() {
@@ -440,8 +484,9 @@ main() {
   run_public_flow
   run_customer_forbidden_flow
   run_admin_flow
+  run_order_flow
+  cleanup_admin_resources
   print_summary
 }
 
 main "$@"
-

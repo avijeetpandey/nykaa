@@ -37,7 +37,7 @@ public class ProductController {
     }
 
     @PostMapping("/update")
-    public ResponseEntity<ApiResponse<ProductResponseDto>> addProduct(@Valid @RequestBody ProductUpdateDto productUpdateDto) {
+    public ResponseEntity<ApiResponse<ProductResponseDto>> updateProduct(@Valid @RequestBody ProductUpdateDto productUpdateDto) {
         log.info("POST /api/v1/products/update - id={}", productUpdateDto.id());
         try {
             ProductResponseDto savedProduct = productService.updateProduct(productUpdateDto);

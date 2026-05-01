@@ -3,6 +3,7 @@ package com.avijeet.nykaa.exception;
 import com.avijeet.nykaa.constants.ApiConstants;
 import com.avijeet.nykaa.exception.auth.InvalidCredentialsException;
 import com.avijeet.nykaa.exception.auth.UserAlreadyExistsException;
+import com.avijeet.nykaa.exception.order.EmptyCartException;
 import com.avijeet.nykaa.exception.user.UserNotFoundException;
 import com.avijeet.nykaa.utils.api.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleProductNotFoundException(ProductNotFoundException ex) {
         log.warn("Product not found: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(EmptyCartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmptyCartException(EmptyCartException ex) {
+        log.warn("Empty cart: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
