@@ -1,8 +1,12 @@
 package com.avijeet.nykaa.exception;
 
 import com.avijeet.nykaa.constants.ApiConstants;
+import com.avijeet.nykaa.exception.RateLimitException;
 import com.avijeet.nykaa.exception.auth.InvalidCredentialsException;
 import com.avijeet.nykaa.exception.auth.UserAlreadyExistsException;
+import com.avijeet.nykaa.exception.cart.CartNotFoundException;
+import com.avijeet.nykaa.exception.inventory.InsufficientStockException;
+import com.avijeet.nykaa.exception.inventory.InventoryLockException;
 import com.avijeet.nykaa.exception.order.EmptyCartException;
 import com.avijeet.nykaa.exception.user.UserNotFoundException;
 import com.avijeet.nykaa.utils.api.ApiResponse;
@@ -19,6 +23,14 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(RateLimitException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimit(RateLimitException ex) {
+        log.warn("Rate limit exceeded: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", "60")
+                .body(ApiResponse.error(ex.getMessage()));
+    }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
@@ -52,6 +64,27 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleEmptyCartException(EmptyCartException ex) {
         log.warn("Empty cart: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(CartNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCartNotFoundException(CartNotFoundException ex) {
+        log.warn("Cart not found: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInsufficientStock(InsufficientStockException ex) {
+        log.warn("Insufficient stock: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(InventoryLockException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInventoryLock(InventoryLockException ex) {
+        log.warn("Inventory lock failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error(ex.getMessage()));
     }
 

@@ -43,6 +43,9 @@ public class Product {
     @NotNull(message = "Brand is required")
     private Brand brand;
 
+    @Column(name = "stock_quantity", nullable = false)
+    private Integer stockQuantity;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

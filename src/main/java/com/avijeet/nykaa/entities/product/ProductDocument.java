@@ -32,4 +32,7 @@ public class ProductDocument {
 
     @Field(type = FieldType.Double)
     private Double price;
+
+    @Field(type = FieldType.Integer)
+    private Integer stockQuantity;
 }
