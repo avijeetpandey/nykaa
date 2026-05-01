@@ -1,6 +1,8 @@
 package com.avijeet.nykaa.exception;
 
 import com.avijeet.nykaa.constants.ApiConstants;
+import com.avijeet.nykaa.exception.auth.InvalidCredentialsException;
+import com.avijeet.nykaa.exception.auth.UserAlreadyExistsException;
 import com.avijeet.nykaa.exception.user.UserNotFoundException;
 import com.avijeet.nykaa.utils.api.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +18,20 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
+        log.warn("User already exists: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidCredentialsException(InvalidCredentialsException ex) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserNotFoundException(UserNotFoundException ex) {
