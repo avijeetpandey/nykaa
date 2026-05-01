@@ -1,8 +1,11 @@
 package com.avijeet.nykaa.service.order;
 
-import com.avijeet.nykaa.dto.order.CartItemRequestDto;
+import com.avijeet.nykaa.constants.KafkaTopics;
+import com.avijeet.nykaa.dto.cart.CartItemData;
 import com.avijeet.nykaa.dto.order.OrderItemDto;
 import com.avijeet.nykaa.dto.order.OrderResponseDto;
+import com.avijeet.nykaa.dto.saga.OrderCreatedEvent;
+import com.avijeet.nykaa.dto.saga.OrderLineItem;
 import com.avijeet.nykaa.entities.order.Order;
 import com.avijeet.nykaa.entities.order.OrderItem;
 import com.avijeet.nykaa.entities.product.Product;
@@ -14,12 +17,16 @@ import com.avijeet.nykaa.exception.user.UserNotFoundException;
 import com.avijeet.nykaa.repository.order.OrderRepository;
 import com.avijeet.nykaa.repository.product.ProductRepository;
 import com.avijeet.nykaa.repository.user.UserRepository;
+import com.avijeet.nykaa.service.cart.CartService;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,96 +36,94 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final CartService cartService;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final Tracer tracer;
 
+    /**
+     * Creates an Order(PENDING) from the Redis cart, then fires an OrderCreated event
+     * to kick off the Kafka Saga choreography:
+     *
+     *   OrderCreated → InventoryReserved → PaymentProcessed → Order(SUCCESS)
+     *                                    ↘ PaymentFailed    → Order(FAILED)
+     *              ↘ OrderCancelled                         → Order(FAILED)
+     *
+     * Returns immediately with the PENDING order; callers poll GET /orders/{id} for resolution.
+     */
     @Transactional
-    public OrderResponseDto addToCart(Long userId, CartItemRequestDto request) {
-        log.info("Adding product {} to cart for user {}", request.productId(), userId);
-        
-        try {
+    public OrderResponseDto placeOrder(Long userId) {
+        Span span = tracer.nextSpan().name("order.place").start();
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            span.tag("user.id", String.valueOf(userId));
+            log.info("[ORDER] PlaceOrder initiated for user {}", userId);
+
+            if (cartService.isCartEmpty(userId)) {
+                throw new EmptyCartException("Cart is empty for user: " + userId);
+            }
+
+            List<CartItemData> cartItems = cartService.getCartItems(userId);
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new UserNotFoundException("User not found: " + userId));
 
-            Product product = productRepository.findById(request.productId())
-                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + request.productId()));
+            Order order = Order.builder().user(user).status(OrderState.PENDING).build();
 
-            Order order = orderRepository.findByUserIdAndStatus(userId, OrderState.PENDING)
-                    .orElseGet(() -> {
-                        Order newOrder = Order.builder()
-                                .user(user)
-                                .status(OrderState.PENDING)
-                                .build();
-                        return orderRepository.save(newOrder);
-                    });
-
-            // Check if item already exists in cart, if so update quantity, else add new
-            Optional<OrderItem> existingItem = order.getItems().stream()
-                    .filter(item -> item.getProduct().getId().equals(product.getId()))
-                    .findFirst();
-
-            if (existingItem.isPresent()) {
-                OrderItem item = existingItem.get();
-                item.setQuantity(item.getQuantity() + request.quantity());
-            } else {
-                OrderItem newItem = OrderItem.builder()
+            for (CartItemData item : cartItems) {
+                Product product = productRepository.findById(item.getProductId())
+                        .orElseThrow(() -> new ProductNotFoundException("Product not found: " + item.getProductId()));
+                order.addItem(OrderItem.builder()
                         .product(product)
-                        .quantity(request.quantity())
-                        .priceAtPurchase(product.getPrice())
-                        .build();
-                order.addItem(newItem);
+                        .quantity(item.getQuantity())
+                        .priceAtPurchase(item.getPrice())
+                        .build());
             }
 
-            order.recalculateTotal();
-            Order savedOrder = orderRepository.save(order);
-            log.info("Successfully updated cart for user {}. Total items: {}", userId, savedOrder.getItems().size());
-            
-            return mapToResponseDto(savedOrder);
-            
-        } catch (Exception e) {
-            log.error("Error adding to cart: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
+            Order saved = orderRepository.save(order);
+            cartService.clearCart(userId);
 
-    @Transactional
-    public OrderResponseDto placeOrder(Long userId) {
-        log.info("Attempting to place order for user {}", userId);
-        
-        try {
-            Order order = orderRepository.findByUserIdAndStatus(userId, OrderState.PENDING)
-                    .orElseThrow(() -> new EmptyCartException("No pending order/cart found for user"));
+            span.tag("order.id", String.valueOf(saved.getId()));
+            span.tag("order.total", String.valueOf(saved.getTotalAmount()));
+            span.tag("order.items", String.valueOf(saved.getItems().size()));
 
-            if (order.getItems().isEmpty()) {
-                throw new EmptyCartException("Cannot place order with empty cart");
-            }
+            List<OrderLineItem> lineItems = saved.getItems().stream()
+                    .map(oi -> OrderLineItem.builder()
+                            .productId(oi.getProduct().getId())
+                            .quantity(oi.getQuantity())
+                            .priceAtPurchase(oi.getPriceAtPurchase())
+                            .build())
+                    .toList();
 
-            // In a real system, payment processing logic would go here
-            // For now, we simulate a successful order placement
-            try {
-                // Simulate processing
-                order.setStatus(OrderState.SUCCESS);
-                Order savedOrder = orderRepository.save(order);
-                log.info("Successfully placed order {} for user {}", savedOrder.getId(), userId);
-                return mapToResponseDto(savedOrder);
-                
-            } catch (Exception paymentFailure) {
-                log.error("Failed to process order {}: {}", order.getId(), paymentFailure.getMessage());
-                order.setStatus(OrderState.FAILED);
-                orderRepository.save(order);
-                throw new RuntimeException("Failed to process order", paymentFailure);
-            }
-            
-        } catch (Exception e) {
-            log.error("Error placing order for user {}: {}", userId, e.getMessage(), e);
-            throw e;
+            kafkaTemplate.send(
+                    KafkaTopics.ORDER_CREATED,
+                    String.valueOf(saved.getId()),
+                    OrderCreatedEvent.builder()
+                            .orderId(saved.getId())
+                            .userId(userId)
+                            .items(lineItems)
+                            .totalAmount(saved.getTotalAmount())
+                            .build());
+
+            log.info("[ORDER] Order {} persisted as PENDING. Saga triggered via {}", saved.getId(), KafkaTopics.ORDER_CREATED);
+            return mapToResponseDto(saved);
+        } catch (Exception ex) {
+            span.error(ex);
+            throw ex;
+        } finally {
+            span.end();
         }
     }
 
     @Transactional(readOnly = true)
-    public OrderResponseDto getCart(Long userId) {
-        log.info("Fetching cart for user {}", userId);
-        Order order = orderRepository.findByUserIdAndStatus(userId, OrderState.PENDING)
-                .orElseThrow(() -> new EmptyCartException("No active cart found"));
+    public OrderResponseDto getOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
         return mapToResponseDto(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderResponseDto> getOrderHistory(Long userId) {
+        return orderRepository.findAllByUserId(userId).stream()
+                .map(this::mapToResponseDto)
+                .toList();
     }
 
     private OrderResponseDto mapToResponseDto(Order order) {
